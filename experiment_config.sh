@@ -9,7 +9,7 @@
 # --- shared (identical across arms for a fair comparison) ---
 export MODEL_PATH="deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B"
 export MAX_GEN_LEN=4000
-export MAX_RESPONSE_LENGTH=4224
+export MAX_RESPONSE_LENGTH=6176
 export TRAIN_BATCH_SIZE=64
 export PPO_MINI_BATCH_SIZE=32
 export ROLLOUT_N=8

@@ -71,7 +71,9 @@ MODEL_PATH="${MODEL_PATH:-deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B}"
 
 # Minimal-repro shared knobs.
 MAX_GEN_LEN="${MAX_GEN_LEN:-4000}"
-MAX_RESPONSE_LENGTH="${MAX_RESPONSE_LENGTH:-4224}"
+# Headroom above max_gen_len for the forced-summary branch (delimiter + answer
+# tokens appended after the full CoT). Mirrors the paper's 8000->10176 ratio.
+MAX_RESPONSE_LENGTH="${MAX_RESPONSE_LENGTH:-6176}"
 TRAIN_BATCH_SIZE="${TRAIN_BATCH_SIZE:-64}"
 PPO_MINI_BATCH_SIZE="${PPO_MINI_BATCH_SIZE:-32}"
 ROLLOUT_N="${ROLLOUT_N:-8}"
