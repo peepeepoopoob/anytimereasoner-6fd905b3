@@ -67,8 +67,17 @@ TOTAL_STEPS="${TOTAL_STEPS:-600}"
 TEST_FREQ="${TEST_FREQ:-40}"
 N_GPUS="${N_GPUS:-$NUM_GPUS}"
 
+# Use wandb only if a key is available; otherwise console-only (EVAL.md is the
+# primary evidence regardless).
+if [ -n "${WANDB_API_KEY:-}" ]; then
+  LOGGER="['console','wandb']"
+else
+  LOGGER="['console']"
+fi
+
 echo "=== Run config ==="
 echo "EXP_NAME=$EXP_NAME"
+echo "LOGGER=$LOGGER"
 echo "METHOD: n_summary=$N_SUMMARY summary_method=$SUMMARY_METHOD n_budget_support=$N_BUDGET_SUPPORT budget_probs=$BUDGET_PROBS variance_reduction=$VARIANCE_REDUCTION"
 echo "max_gen_len=$MAX_GEN_LEN total_steps=$TOTAL_STEPS n_gpus=$N_GPUS rollout_n=$ROLLOUT_N"
 
@@ -121,7 +130,7 @@ python3 -m verl.trainer.main_ppo \
     actor_rollout_ref.ref.fsdp_config.param_offload=True \
     algorithm.kl_ctrl.kl_coef=0.001 \
     trainer.critic_warmup=0 \
-    trainer.logger=['console','wandb'] \
+    trainer.logger="$LOGGER" \
     trainer.project_name='anytime-reasoning-minimal' \
     trainer.experiment_name="$EXP_NAME" \
     +trainer.val_before_train=True \
