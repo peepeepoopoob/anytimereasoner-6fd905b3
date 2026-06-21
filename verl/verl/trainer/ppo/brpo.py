@@ -72,7 +72,6 @@ def get_summary_method():
     return SUMMARY_METHOD
 
 def set_training_split_plan(max_gen_len: int, n_budget_support: int, budget_probs: "str"):
-    assert max_gen_len in [8000, 16000]
     assert budget_probs in ["uniform", "linear", "base"]
     global TRAIN_SPLIT_POINTS, TRAIN_BUDGET_PROBS, VAL_SPLIT_POINTS, VAL_BUDGET_PROBS
     if max_gen_len == 8000:
@@ -91,7 +90,14 @@ def set_training_split_plan(max_gen_len: int, n_budget_support: int, budget_prob
         assert n_budget_support in [1, 2, 4, 8]
         TRAIN_SPLIT_POINTS = [16000 // n_budget_support * i for i in range(1, n_budget_support + 1)]
     else:
-        raise ValueError(f"Unexpected max_gen_len: {max_gen_len}")
+        # Minimal-repro: generalize to any max_gen_len divisible into 4 even
+        # validation budgets (e.g. 4000 -> [1000,2000,3000,4000]). Keeps the
+        # paper's 4-budget anytime-accuracy semantics at a smaller compute cost.
+        assert n_budget_support in [1, 2, 4, 8]
+        assert max_gen_len % 4 == 0, f"max_gen_len {max_gen_len} must be divisible by 4"
+        VAL_SPLIT_POINTS = [max_gen_len // 4 * i for i in range(1, 5)]
+        VAL_BUDGET_PROBS = [0.25] * 4
+        TRAIN_SPLIT_POINTS = [max_gen_len // n_budget_support * i for i in range(1, n_budget_support + 1)]
     if budget_probs == "uniform":
         TRAIN_BUDGET_PROBS = [1.0 / n_budget_support] * n_budget_support
     elif budget_probs == "linear":

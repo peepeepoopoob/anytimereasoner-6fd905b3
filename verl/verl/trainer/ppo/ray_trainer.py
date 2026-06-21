@@ -842,6 +842,85 @@ class RayPPOTrainer(object):
                                                     prefix=logging_prefix)
         metrics.update(global_balance_stats)
 
+    def _emit_eval_artifacts(self, val_metrics, step, is_final=False):
+        """Minimal-repro: persist anytime + final accuracy to artifacts.
+
+        Writes a running JSONL history and an EVAL.md summary to
+        .openresearch/artifacts/ so the run's anytime (token_budget/avg_score)
+        and final (full_cot/avg_score) accuracy are inspectable via `orx artifact`.
+        """
+        import os, json
+        try:
+            art_dir = os.path.join(os.getcwd(), '.openresearch', 'artifacts')
+            os.makedirs(art_dir, exist_ok=True)
+
+            # Collect the headline metrics across data sources.
+            def _avg(suffix):
+                vals = [v for k, v in val_metrics.items() if k.endswith(suffix)]
+                return sum(vals) / len(vals) if vals else float('nan')
+
+            anytime = _avg('/token_budget/avg_score')
+            final = _avg('/full_cot/avg_score')
+
+            row = {'step': int(step), 'anytime_acc': anytime, 'final_acc': final}
+            # per-data-source + per-budget breakdown
+            for k, v in sorted(val_metrics.items()):
+                if k.startswith('val/') and (
+                    'token_budget' in k or 'full_cot' in k or 'cot_length' in k):
+                    row[k] = v
+            with open(os.path.join(art_dir, 'val_history.jsonl'), 'a') as f:
+                f.write(json.dumps(row) + '\n')
+
+            # Per-budget anytime curve (averaged over data sources).
+            from verl.trainer.ppo.brpo import VAL_SPLIT_POINTS
+            budget_rows = []
+            for i, b in enumerate(VAL_SPLIT_POINTS):
+                bs = [v for k, v in val_metrics.items()
+                      if k.endswith(f'/token_budget/{i}/score')]
+                budget_rows.append((b, sum(bs) / len(bs) if bs else float('nan')))
+
+            conf = self.config.actor_rollout_ref.rollout
+            method = (f"summary={conf.summary_method}, n_summary={conf.n_summary}, "
+                      f"n_budget_support={conf.n_budget_support}, "
+                      f"budget_probs={conf.budget_probs}, vr={conf.variance_reduction}")
+
+            lines = []
+            lines.append(f"# EVAL: {self.config.trainer.experiment_name}")
+            lines.append("")
+            lines.append(f"- method: `{method}`")
+            lines.append(f"- model: `{self.config.actor_rollout_ref.model.path}`")
+            lines.append(f"- max_gen_len: {conf.max_gen_len}")
+            lines.append(f"- step: {int(step)} / {self.total_training_steps}"
+                         + ("  (FINAL)" if is_final else ""))
+            lines.append("")
+            lines.append("## Headline accuracy (averaged over AIME+AMC)")
+            lines.append("")
+            lines.append(f"- **anytime accuracy** (avg over budgets): {anytime*100:.2f}%")
+            lines.append(f"- **final accuracy** (full CoT): {final*100:.2f}%")
+            lines.append("")
+            lines.append("## Anytime curve: accuracy vs token budget")
+            lines.append("")
+            lines.append("| budget | accuracy |")
+            lines.append("|---|---|")
+            for b, s in budget_rows:
+                lines.append(f"| {b} | {s*100:.2f}% |")
+            lines.append("")
+            lines.append("## Per-data-source")
+            lines.append("")
+            lines.append("| data_source | anytime | final |")
+            lines.append("|---|---|---|")
+            sources = sorted({k.split('/')[1] for k in val_metrics
+                              if k.startswith('val/') and len(k.split('/')) > 2})
+            for s in sources:
+                a = val_metrics.get(f'val/{s}/token_budget/avg_score', float('nan'))
+                fi = val_metrics.get(f'val/{s}/full_cot/avg_score', float('nan'))
+                lines.append(f"| {s} | {a*100:.2f}% | {fi*100:.2f}% |")
+            with open(os.path.join(art_dir, 'EVAL.md'), 'w') as f:
+                f.write('\n'.join(lines) + '\n')
+            print(f"[EVAL] step {int(step)}: anytime={anytime*100:.2f}% final={final*100:.2f}%")
+        except Exception as e:
+            print(f"[EVAL] failed to emit eval artifacts: {e}")
+
     def fit(self):
         """
         The training loop of PPO.
@@ -870,6 +949,7 @@ class RayPPOTrainer(object):
                 val_metrics = self._validate()
                 pprint(f'Initial validation metrics: {val_metrics}')
                 logger.log(data=val_metrics, step=self.global_steps)
+                self._emit_eval_artifacts(val_metrics, self.global_steps)
                 self.global_steps += 1
             if self.config.trainer.get('val_only', False):
                 return
@@ -1003,6 +1083,7 @@ class RayPPOTrainer(object):
                             val_metrics: dict = self._validate()
                             if is_last_step:
                                 last_val_metrics = val_metrics
+                            self._emit_eval_artifacts(val_metrics, self.global_steps, is_final=is_last_step)
                         metrics.update(val_metrics)
 
                     if self.config.trainer.save_freq > 0 and ( is_last_step or \
