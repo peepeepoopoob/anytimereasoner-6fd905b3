@@ -1,11 +1,10 @@
 #!/bin/bash
-# Method configuration for the AnytimeReasoner minimal reproduction.
+# Method configuration — ARM: GRPO baseline (control).
 #
-# Sibling experiment nodes override THIS FILE only (run.sh is shared infra).
-# Default here is the GRPO baseline; the AnytimeReasoner-uniform sibling sets
-# the BRPO / multi-budget / uniform-prior knobs.
+# Single full-budget thinking policy, sparse end-of-trace reward, no dense
+# rewards, no BRPO variance reduction. This is the baseline we aim to beat.
 
-# --- shared (same for every arm, for a fair comparison) ---
+# --- shared (identical across arms for a fair comparison) ---
 export MODEL_PATH="deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B"
 export MAX_GEN_LEN=4000
 export MAX_RESPONSE_LENGTH=4224
@@ -15,7 +14,7 @@ export ROLLOUT_N=8
 export TOTAL_STEPS=600
 export TEST_FREQ=40
 
-# --- method-specific (GRPO baseline) ---
+# --- method-specific: GRPO ---
 export EXP_NAME="GRPO"
 export N_SUMMARY=1
 export SUMMARY_METHOD="grpo"
