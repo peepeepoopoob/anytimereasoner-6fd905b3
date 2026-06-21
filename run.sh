@@ -17,6 +17,18 @@ export TOKENIZERS_PARALLELISM=false
 export HF_HUB_ENABLE_HF_TRANSFER=1
 export VLLM_ATTENTION_BACKEND=FLASH_ATTN
 
+# NCCL robustness on containerized multi-GPU hosts (vast.ai etc.): disable P2P /
+# shared-memory / InfiniBand transports that are often blocked in containers and
+# cause "Cuda failure 401 'the operation cannot be performed in the present
+# state'" at the first cross-GPU barrier. These fall back to slower but reliable
+# transports.
+export NCCL_P2P_DISABLE=1
+export NCCL_SHM_DISABLE=1
+export NCCL_IB_DISABLE=1
+export NCCL_CUMEM_ENABLE=0
+export VLLM_WORKER_MULTIPROC_METHOD=spawn
+export NCCL_DEBUG=WARN
+
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$REPO_ROOT"
 
